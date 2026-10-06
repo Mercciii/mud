@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML MUD 测试版</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
+        #output { width: 100%; height: 70vh; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; border-bottom: 1px solid #0f0; }
+        #input { width: 100%; background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; font-family: monospace; outline: none; }
+    </style>
+</head>
+<body>
+    <div id="output">正在连接服务器...</div>
+    <input type="text" id="input" placeholder="输入指令 (如 look, north)" autocomplete="off" disabled>
+
+    <script>
+        const outputEl = document.getElementById('output');
+        const inputEl = document.getElementById('input');
+        
+        // 连接本地的 WebSocket 服务器
+        const ws = new WebSocket('ws://localhost:3000');
+
+        ws.onopen = () => {
+            outputEl.innerText = '服务器已连接。\n';
+            inputEl.disabled = false;
+            inputEl.focus();
+        };
+
+        ws.onmessage = (event) => {
+            outputEl.innerText += event.data + '\n';
+            // 自动滚动到底部
+            outputEl.scrollTop = outputEl.scrollHeight;
+        };
+
+        ws.onclose = () => {
+            outputEl.innerText += '\n与服务器断开连接。';
+            inputEl.disabled = true;
+        };
+
+        // 监听键盘回车
+        inputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const command = inputEl.value.trim();
+                if (command) {
+                    outputEl.innerText += `\n> ${command}\n`;
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                    ws.send(command); // 发送指令给后端
+                    inputEl.value = '';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
