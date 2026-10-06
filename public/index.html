@@ -2,22 +2,95 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>HTML MUD 测试版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML MUD - 现代版</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
-        #output { width: 100%; height: 70vh; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; border-bottom: 1px solid #0f0; }
-        #input { width: 100%; background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; font-family: monospace; outline: none; }
+        /* 基础样式：深色模式，现代字体 */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: #121212; color: #d4d4d4; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            height: 100vh; display: flex; overflow: hidden;
+        }
+        
+        /* 左侧状态栏 */
+        #sidebar {
+            width: 250px; background: #1e1e1e; border-right: 1px solid #333;
+            padding: 20px; display: flex; flex-direction: column; gap: 20px;
+        }
+        .player-title { font-size: 20px; font-weight: bold; color: #4ade80; text-align: center; }
+        .stat-bar { background: #333; border-radius: 10px; height: 20px; overflow: hidden; position: relative; }
+        .stat-fill { height: 100%; width: 100%; transition: width 0.3s ease; }
+        .hp-fill { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .mp-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+        .stat-label { position: absolute; width: 100%; text-align: center; font-size: 12px; line-height: 20px; color: white; text-shadow: 1px 1px 2px black; }
+
+        /* 右侧主游戏区 */
+        #main-area { flex: 1; display: flex; flex-direction: column; }
+        #output {
+            flex: 1; padding: 20px; overflow-y: auto; white-space: pre-wrap; 
+            font-family: 'Courier New', Courier, monospace; font-size: 16px; line-height: 1.6;
+        }
+        #input-area { padding: 15px; border-top: 1px solid #333; background: #1e1e1e; display: flex; gap: 10px; }
+        #input {
+            flex: 1; background: #2d2d2d; color: #d4d4d4; border: 1px solid #444;
+            padding: 12px 15px; border-radius: 5px; font-size: 16px; outline: none;
+        }
+        #input:focus { border-color: #4ade80; }
+
+        /* 快捷按钮区 */
+        #quick-buttons { padding: 10px; background: #1a1a1a; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid #333; }
+        .btn {
+            background: #333; color: #fff; border: none; padding: 8px 15px;
+            border-radius: 5px; cursor: pointer; font-size: 14px; transition: 0.2s;
+        }
+        .btn:hover { background: #4ade80; color: #000; }
     </style>
 </head>
 <body>
-    <div id="output">正在连接服务器...</div>
-    <input type="text" id="input" placeholder="输入指令 (如 look, north)" autocomplete="off" disabled>
+
+    <!-- 左侧状态栏 -->
+    <div id="sidebar">
+        <div class="player-title">无名侠客</div>
+        <div>
+            <div style="font-size: 14px; margin-bottom: 5px;">气血 (HP)</div>
+            <div class="stat-bar">
+                <div class="stat-fill hp-fill" id="hp-bar" style="width: 100%;"></div>
+                <div class="stat-label" id="hp-text">100 / 100</div>
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 14px; margin-bottom: 5px;">内力 (MP)</div>
+            <div class="stat-bar">
+                <div class="stat-fill mp-fill" id="mp-bar" style="width: 100%;"></div>
+                <div class="stat-label" id="mp-text">50 / 50</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧主游戏区 -->
+    <div id="main-area">
+        <div id="output">正在连接服务器...</div>
+        <!-- 快捷按钮 -->
+        <div id="quick-buttons">
+            <button class="btn" onclick="sendCmd('look')">查看 (look)</button>
+            <button class="btn" onclick="sendCmd('north')">北 (north)</button>
+            <button class="btn" onclick="sendCmd('south')">南 (south)</button>
+            <button class="btn" onclick="sendCmd('east')">东 (east)</button>
+            <button class="btn" onclick="sendCmd('west')">西 (west)</button>
+        </div>
+        <!-- 输入框 -->
+        <div id="input-area">
+            <input type="text" id="input" placeholder="输入指令..." autocomplete="off" disabled>
+        </div>
+    </div>
 
     <script>
         const outputEl = document.getElementById('output');
         const inputEl = document.getElementById('input');
+        const hpBar = document.getElementById('hp-bar');
+        const mpBar = document.getElementById('mp-bar');
         
-        // 连接本地的 WebSocket 服务器
         const ws = new WebSocket('ws://localhost:3000');
 
         ws.onopen = () => {
@@ -27,9 +100,25 @@
         };
 
         ws.onmessage = (event) => {
-            outputEl.innerText += event.data + '\n';
-            // 自动滚动到底部
-            outputEl.scrollTop = outputEl.scrollHeight;
+            try {
+                // 尝试解析后端发来的 JSON 数据
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'text') {
+                    outputEl.innerText += data.content + '\n';
+                    outputEl.scrollTop = outputEl.scrollHeight;
+                } else if (data.type === 'status') {
+                    // 更新血条和内力条
+                    hpBar.style.width = (data.hp / data.maxHp * 100) + '%';
+                    document.getElementById('hp-text').innerText = `${data.hp} / ${data.maxHp}`;
+                    mpBar.style.width = (data.mp / data.maxMp * 100) + '%';
+                    document.getElementById('mp-text').innerText = `${data.mp} / ${data.maxMp}`;
+                }
+            } catch (e) {
+                // 如果后端发的不是 JSON，直接当纯文本输出（兼容旧版）
+                outputEl.innerText += event.data + '\n';
+                outputEl.scrollTop = outputEl.scrollHeight;
+            }
         };
 
         ws.onclose = () => {
@@ -37,14 +126,20 @@
             inputEl.disabled = true;
         };
 
+        // 发送指令的封装函数
+        function sendCmd(cmd) {
+            if (!cmd) return;
+            outputEl.innerText += `\n> ${cmd}\n`;
+            outputEl.scrollTop = outputEl.scrollHeight;
+            ws.send(cmd);
+        }
+
         // 监听键盘回车
         inputEl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 const command = inputEl.value.trim();
                 if (command) {
-                    outputEl.innerText += `\n> ${command}\n`;
-                    outputEl.scrollTop = outputEl.scrollHeight;
-                    ws.send(command); // 发送指令给后端
+                    sendCmd(command);
                     inputEl.value = '';
                 }
             }
