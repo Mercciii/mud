@@ -1,0 +1,8 @@
+*.exe
+data/
+temp/
+log/
+u/
+dump/
+backup/
+.DS_Store
